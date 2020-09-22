@@ -6,6 +6,10 @@ You can access the websoket from ws://localhost:8087
 Use commands 
 
 
+pip install asyncio
+
+pip install websockets
+
 pip install PIL
 
 pip install image
