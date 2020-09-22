@@ -155,7 +155,7 @@ class twainLib(object):
     def next(self):
         try:
             print("next()")
-            image_info = self.scanner.image_info()
+            image_info = self.scanner.GetImageInfo()
             print(image_info)
             return True
         except twain.excTWCC_SEQERROR as e:
