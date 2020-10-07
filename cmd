@@ -1,1 +1,1 @@
-pyinstaller --onefile --windowed --noconsole --icon="img/twainscanner.ico" twainscanner.py
+pyinstaller --onefile --windowed --noconsole --icon="img/scandoc.ico" scandoc.py
