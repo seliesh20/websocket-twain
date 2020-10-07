@@ -13,6 +13,12 @@ twainObject = twainLib.twainLib()
 class functLib:
 
     async def getScanners(self, sendCallback, websocket):
+        '''
+        Get scanners list
+        :param sendCallback:
+        :param websocket:
+        :return:
+        '''
         send_data = {}
         send_data["action"] = "getScanners"
         send_data["scanners"] = twainObject.getScanners()
@@ -20,10 +26,26 @@ class functLib:
         await sendCallback(send_data, websocket)
 
     def isValidScanner(self, params, sendCallback, websocket):
+        '''
+        Check the scanner is available
+        :param params:
+        :param sendCallback:
+        :param websocket:
+        :return:
+        '''
         scanners = twainObject.getScanners()
-        return params['scanner'] in scanners
+        if params['scanner'] in scanners:
+            return twainObject.isScannerReady(params['scanner'])
+        return False
 
     async def scanSingle(self, params, sendCallback, websocket):
+        '''
+        Scan the single file
+        :param params:
+        :param sendCallback:
+        :param websocket:
+        :return:
+        '''
         (img_str, scanner, dpi) = (None, None, None)
         if params["scanner"]:
             scanner = params["scanner"]
@@ -50,6 +72,13 @@ class functLib:
         await sendCallback(send_data, websocket)
 
     async def scan(self, params, sendCallback, websocket):
+        '''
+        Scan the pages from the scanner
+        :param params:
+        :param sendCallback:
+        :param websocket:
+        :return:
+        '''
         (img_str, scanner, dpi) = (None, None, None)
         if params["scanner"]:
             scanner = params["scanner"]
@@ -65,13 +94,27 @@ class functLib:
             await sendCallback(send_data, websocket)
 
         try:
-            # twainObject.scanDialog(scanner)
             await twainObject.multiscan(callback, scanner, dpi)
         except Exception as e:
             print(e)
 
         send_data = {}
         send_data["action"] = "scanComplete"
+        await sendCallback(send_data, websocket)
+
+    async def removeFiles(self, params, sendCallback, websocket):
+        '''
+        Remove the local files
+        :param params:
+        :param sendCallback:
+        :param websocket:
+        :return:
+        '''
+        if params["files"]:
+            for key in params["files"]:
+                os.remove('temp/' + params["files"][key])
+        send_data = {}
+        send_data["action"] = "removeFiles"
         await sendCallback(send_data, websocket)
 
     async def createPdf(self, params, sendCallback, websocket):
@@ -106,5 +149,6 @@ class functLib:
             send_data["action"] = "documentCreated"
             send_data["filename"] = filename
             send_data["base64"] = "data:application/pdf;base64,"+base64.b64encode(open('temp/'+filename, "rb").read()).decode('utf-8')
+            os.remove('temp/' + filename)
             await sendCallback(send_data, websocket)
 

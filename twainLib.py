@@ -1,19 +1,10 @@
 import asyncio
 import os
-
 import twain
 import customLib
 from PIL import Image
 from io import BytesIO
-import base64
 import time
-
-class CancelAll(Exception):
-    '''Exception used by callbacks to cancel remaining image transfers'''
-    pass
-
-class excDSTransferCancelled(Exception):
-    pass
 
 class twainLib(object):
     def __init__(self):
@@ -26,6 +17,21 @@ class twainLib(object):
         lib = customLib.load_twain_dll()
         self.sourceManager = twain.SourceManager(1, dsm_name=lib)
 
+    def isScannerReady(self, device):
+        if not self.sourceManager:
+            self.start()
+        try:
+            self.scanner = self.sourceManager.OpenSource(self.sourceManager._encode(device))
+            if self.scanner:
+                self.scanner.close()
+                return True
+        except twain.excTWCC_BUMMER as e:
+            print(e)
+            return False
+        finally:
+            self.close()
+        return False
+
     def getScanners(self):
         self.start()
         scanners = self.sourceManager.GetSourceList()
@@ -33,8 +39,10 @@ class twainLib(object):
 
     def setScanner(self, device):
         try:
+            if not self.sourceManager:
+                self.start()
             self.scanner = self.sourceManager.OpenSource(self.sourceManager._encode(device))
-        except Exception as e:
+        except twain.excDSOpenFailed as e:
             print(e)
 
     def setDPI(self, dpi):
@@ -86,6 +94,7 @@ class twainLib(object):
             self.setScanner(device)
         else:
             self.setScanner(devices[0])
+        print(self.scanner)
 
         if dpi:
            self.setDPI(dpi)
@@ -127,8 +136,8 @@ class twainLib(object):
         if dpi:
            self.setDPI(dpi)
 
-        #self.setPixelType("color")
-        #self.setScanArea()
+        self.setPixelType("color")
+        self.setScanArea()
 
         try:
             self.scanner.RequestAcquire(0, 0)  # RequestAcquire(ShowUI, ShowModal)
@@ -136,10 +145,8 @@ class twainLib(object):
             print(e)
 
         while self.next():
-            print("Next Called")
             image = self.capture()
             if image:
-                print("Image available")
                 # check the folder exists
                 if not os.path.exists("temp"):
                     os.mkdir("temp", 0o777)
@@ -155,11 +162,10 @@ class twainLib(object):
     def next(self):
         try:
             print("next()")
-            image_info = self.scanner.GetImageInfo()
-            print(image_info)
+            self.scanner.GetImageInfo()
+            print("image_info()")
             return True
-        except twain.excTWCC_SEQERROR as e:
-            print(e)
+        except twain.excTWCC_SEQERROR:
             self.closeScanner()
             print("next fired an exception")
             return False

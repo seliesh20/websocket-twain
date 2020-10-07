@@ -4,8 +4,6 @@ import random
 
 import websockets
 import functLib
-from functLib import twainObject
-
 functObject = functLib.functLib()
 DEFAULTSCANNER = "default"
 DEFAULTDPI = 200
@@ -56,6 +54,7 @@ async def serverConfig(websocket, path):
                     DEFAULTSCANNER = params["scanner"]
                     DEFAULTDPI = params["dpi"]
                     send_data["status"] = "true"
+                    send_data["scanner"] = params["scanner"]
                     await sendToUser(send_data, websocket)
                 else:
                     send_data["status"] = "false"
@@ -67,8 +66,11 @@ async def serverConfig(websocket, path):
                 await functObject.scan(params, sendToUser, websocket)
             if (action == 'createDocument'):
                 await functObject.createPdf(params, sendToUser, websocket)
+            if (action == 'removeFiles'):
+                await functObject.removeFiles(params, sendToUser, websocket)
 
         await asyncio.sleep(random.random() * 3)
+
 start_server = websockets.server.serve(serverConfig, 'localhost', 8087)
 asyncio.get_event_loop().run_until_complete(start_server)
 asyncio.get_event_loop().run_forever()
