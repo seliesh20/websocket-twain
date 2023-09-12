@@ -1,10 +1,11 @@
-import asyncio
+# import asyncio
 import os
 import twain
 import customLib
 from PIL import Image
 from io import BytesIO
 import time
+
 
 class twainLib(object):
     def __init__(self):
@@ -15,7 +16,7 @@ class twainLib(object):
 
     def start(self):
         lib = customLib.load_twain_dll()
-        self.sourceManager = twain.SourceManager(1, dsm_name=lib)
+        self.sourceManager = twain.SourceManager(1, dsm_name=lib)  # dsm_name=lib
 
     def isScannerReady(self, device):
         if not self.sourceManager:
@@ -25,9 +26,11 @@ class twainLib(object):
             if self.scanner:
                 self.scanner.close()
                 return True
-        except twain.excTWCC_BUMMER as e:
+        except (twain.excTWCC_BUMMER, twain.excTWCC_PAPERJAM) as e:
             print(e)
             return False
+        except Exception as e:
+            print(e)
         finally:
             self.close()
         return False
@@ -57,7 +60,18 @@ class twainLib(object):
         except Exception as e:
             print(e)
 
-    def setScanArea(self, left=0.0, top=0.0, width=8.267, height=11.693):
+    def setScanArea(self, page="A4"):
+        left = 0.000
+        top = 0.000
+        width = 8.267
+        height = 11.693
+
+        if page == "Letter":
+            left = 0.000
+            top = 0.000
+            width = 8.500
+            height = 11.000
+
         width = float(width)
         height = float(height)
         left = float(left)
@@ -86,7 +100,7 @@ class twainLib(object):
         except Exception as e:
             print(e)
 
-    async def scan(self, callback, device=None, dpi=None):
+    async def scan(self, callback, device=None, dpi=None, page=None):
         if not self.sourceManager:
             self.start()
         devices = self.getScanners()
@@ -97,10 +111,10 @@ class twainLib(object):
         print(self.scanner)
 
         if dpi:
-           self.setDPI(dpi)
+            self.setDPI(dpi)
 
         self.setPixelType("color")
-        self.setScanArea()
+        self.setScanArea(page)
 
         self.scanner.RequestAcquire(0, 1)
         info = self.scanner.GetImageInfo()
@@ -110,20 +124,20 @@ class twainLib(object):
             twain.GlobalHandleFree(self.handle)
             self.close()
 
-            #check the folder exists
+            # check the folder exists
             if not os.path.exists("temp"):
                 os.mkdir("temp", 0o777)
 
             img = Image.open(BytesIO(image))
-            filename = str(time.time())+'.jpg'
-            img.save('temp/'+filename)
+            filename = str(time.time()) + '.jpg'
+            img.save('temp/' + filename)
             await callback(filename)
             return True
         except Exception as e:
             print(e)
             return False
 
-    async def multiscan(self, callback, device=None, dpi=None):
+    async def multiscan(self, callback, device=None, dpi=None, page=None):
         if not self.sourceManager:
             self.start()
         devices = self.getScanners()
@@ -134,13 +148,16 @@ class twainLib(object):
             self.setScanner(devices[0])
 
         if dpi:
-           self.setDPI(dpi)
+            self.setDPI(dpi)
 
         self.setPixelType("color")
-        self.setScanArea()
+        self.setScanArea(page)
 
         try:
+
             self.scanner.RequestAcquire(0, 0)  # RequestAcquire(ShowUI, ShowModal)
+            #self.scanner.GetImages(0, 0, callback, 'temp/')
+
         except Exception as e:
             print(e)
 
@@ -148,24 +165,26 @@ class twainLib(object):
             image = self.capture()
             if image:
                 # check the folder exists
-                if not os.path.exists("temp"):
-                    os.mkdir("temp", 0o777)
-
-                img = Image.open(BytesIO(image))
-                filename = str(time.time()) + '.jpg'
-                img.save('temp/' + filename)
-                await callback(filename)
+                # if not os.path.exists("temp"):
+                #     os.mkdir("temp", 0o777)
+                #
+                # img = Image.open(BytesIO(image))
+                # filename = str(time.time()) + '.jpg'
+                # img.save('temp/' + filename)
+                await callback(image)
             else:
                 print("Capture didnt find any images")
+                self.close()
+                return True
         return True
 
     def next(self):
         try:
             print("next()")
-            self.scanner.GetImageInfo()
-            print("image_info()")
+            imagemin = self.scanner.GetImageInfo()
+            print(imagemin)
             return True
-        except twain.excTWCC_SEQERROR:
+        except (twain.excTWCC_PAPERJAM, twain.excTWCC_SEQERROR, twain.excTWCC_NODS) as e:
             self.closeScanner()
             print("next fired an exception")
             return False
@@ -174,12 +193,16 @@ class twainLib(object):
         try:
             print("capture()")
             (handle, more_to_come) = self.scanner.XferImageNatively()
+            if not os.path.exists("temp"):
+                os.mkdir("temp", 0o777)
+            bmp_filename = str(time.time()) + '.bmp'
+            filename = str(time.time()) + '.jpg'
+            twain.DIBToBMFile(handle, 'temp/'+bmp_filename)
+            Image.open('temp/'+bmp_filename).save('temp/'+filename, format='JPEG')
+            os.remove('temp/'+bmp_filename)
+            return filename
         except twain.excDSTransferCancelled:
-            self.close()
             return None
-        image = twain.DIBToBMFile(handle)
-        twain.GlobalHandleFree(handle)
-        return image
 
     def closeScanner(self):
         if self.scanner:
